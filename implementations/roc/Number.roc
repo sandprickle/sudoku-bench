@@ -1,36 +1,31 @@
-interface Number
-    exposes [
-        Number,
-        fromInt,
-        fromIntNormalize,
-        fromStr,
-        toI8,
-        toU64,
-        toStr,
-        increment,
-        fullSet,
-        one,
-        two,
-        three,
-        four,
-        five,
-        six,
-        seven,
-        eight,
-        nine,
-        all,
-    ]
-    imports []
+module [
+    Number,
+    fromInt,
+    fromIntNormalize,
+    fromStr,
+    toU8,
+    toU64,
+    toStr,
+    increment,
+    all,
+]
 
 ## A number in the range 1-9, inclusive.
-Number := I8 implements [Eq, Hash]
+Number : [One, Two, Three, Four, Five, Six, Seven, Eight, Nine]
 
 fromInt : Int * -> Result Number [OutOfRange]
 fromInt = \n ->
-    if n >= 1 && n <= 9 then
-        Ok (@Number (Num.toI8 n))
-    else
-        Err OutOfRange
+    when n is
+        1 -> One |> Ok
+        2 -> Two |> Ok
+        3 -> Three |> Ok
+        4 -> Four |> Ok
+        5 -> Five |> Ok
+        6 -> Six |> Ok
+        7 -> Seven |> Ok
+        8 -> Eight |> Ok
+        9 -> Nine |> Ok
+        _ -> Err OutOfRange
 
 fromIntNormalize : Int * -> Number
 fromIntNormalize = \n ->
@@ -42,49 +37,63 @@ fromIntNormalize = \n ->
         else
             n
 
-    @Number (Num.toI8 num)
+    fromInt num |> Result.withDefault (One)
 
 fromStr : Str -> Result Number [InvalidStr]
 fromStr = \str ->
     when str is
-        "1" -> Ok (@Number 1)
-        "2" -> Ok (@Number 2)
-        "3" -> Ok (@Number 3)
-        "4" -> Ok (@Number 4)
-        "5" -> Ok (@Number 5)
-        "6" -> Ok (@Number 6)
-        "7" -> Ok (@Number 7)
-        "8" -> Ok (@Number 8)
-        "9" -> Ok (@Number 9)
+        "1" -> Ok (One)
+        "2" -> Ok (Two)
+        "3" -> Ok (Three)
+        "4" -> Ok (Four)
+        "5" -> Ok (Five)
+        "6" -> Ok (Six)
+        "7" -> Ok (Seven)
+        "8" -> Ok (Eight)
+        "9" -> Ok (Nine)
         _ -> Err InvalidStr
 
-toI8 : Number -> I8
-toI8 = \@Number n -> n
+toU8 : Number -> U8
+toU8 = \num ->
+    when num is
+        One -> 1
+        Two -> 2
+        Three -> 3
+        Four -> 4
+        Five -> 5
+        Six -> 6
+        Seven -> 7
+        Eight -> 8
+        Nine -> 9
 
 toU64 : Number -> U64
-toU64 = \@Number n -> Num.toU64 n
+toU64 = \number ->
+    toU8 number |> Num.toU64
 
 toStr : Number -> Str
-toStr = \@Number n -> Num.toStr n
+toStr = \num ->
+    when num is
+        One -> "1"
+        Two -> "2"
+        Three -> "3"
+        Four -> "4"
+        Five -> "5"
+        Six -> "6"
+        Seven -> "7"
+        Eight -> "8"
+        Nine -> "9"
 
 increment : Number -> Result Number [MaxValue]
-increment = \@Number n ->
-    if n < 9 then
-        Ok (@Number (n + 1))
-    else
-        Err MaxValue
+increment = \num ->
+    when num is
+        One -> Two |> Ok
+        Two -> Three |> Ok
+        Three -> Four |> Ok
+        Four -> Five |> Ok
+        Five -> Six |> Ok
+        Six -> Seven |> Ok
+        Seven -> Eight |> Ok
+        Eight -> Nine |> Ok
+        Nine -> Err MaxValue
 
-fullSet : Set Number
-fullSet = Set.fromList all
-
-one = @Number 1
-two = @Number 2
-three = @Number 3
-four = @Number 4
-five = @Number 5
-six = @Number 6
-seven = @Number 7
-eight = @Number 8
-nine = @Number 9
-
-all = [one, two, three, four, five, six, seven, eight, nine]
+all = [One, Two, Three, Four, Five, Six, Seven, Eight, Nine]

@@ -1,17 +1,16 @@
-app "sudoku"
-    packages { pf: "https://github.com/roc-lang/basic-cli/releases/download/0.8.1/x8URkvfyi9I0QhmVG98roKBUs_AZRkLFwFJVJ3942YA.tar.br" }
-    imports [
-        pf.Stdout,
-        pf.Stderr,
-        pf.Task.{ Task },
-        pf.Arg,
-        pf.Path.{ Path },
-        pf.File.{ File },
-        Grid.{ Grid, Cell },
-        Solve,
-        Puzzles,
-    ]
-    provides [main] to pf
+app [main] {
+    cli: platform "https://github.com/roc-lang/basic-cli/releases/download/0.8.1/x8URkvfyi9I0QhmVG98roKBUs_AZRkLFwFJVJ3942YA.tar.br",
+    parser: "https://github.com/lukewilliamboswell/roc-parser/releases/download/0.5.2/9VrPjwfQQ1QeSL3CfmWr2Pr9DESdDIXy97pwpuq84Ck.tar.br",
+}
+
+import cli.Stdout
+import cli.Stderr
+import cli.Task exposing [Task]
+import cli.Arg
+import cli.Path
+import cli.File
+import BTAdvHeap
+import Puzzles
 
 main : Task {} I32
 main =
@@ -25,17 +24,17 @@ main =
                     runBenchmark
                 else
                     contents <- loadFile arg |> Task.await
-                    inPuzzle = Grid.fromStr contents
+                    inPuzzle = BTAdvHeap.fromStr contents
 
                     _ <- inPuzzle
-                        |> Grid.prettyPrint
+                        |> BTAdvHeap.prettyPrint
                         |> Stdout.line
                         |> Task.await
 
                     output =
-                        when inPuzzle |> Grid.prune |> Solve.backtrackSimple is
+                        when inPuzzle |> BTAdvHeap.prune |> BTAdvHeap.solve is
                             Ok solution ->
-                                "Solution:\n$(Grid.prettyPrint solution)"
+                                "Solution:\n$(BTAdvHeap.prettyPrint solution)"
 
                             Err TooFewHints ->
                                 "Too few hints!"
@@ -69,9 +68,9 @@ runBenchmark : Task {} I32
 runBenchmark =
     puzzles =
         List.repeat Puzzles.puzzle1 100
-        |> List.map Grid.fromStr
-        |> List.map Grid.prune
+        |> List.map BTAdvHeap.fromStr
+        |> List.map BTAdvHeap.prune
 
-    results = List.map puzzles Solve.backtrackSimple
+    results = List.map puzzles BTAdvHeap.solve
 
     Task.ok {}

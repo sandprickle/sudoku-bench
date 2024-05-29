@@ -1,33 +1,21 @@
-interface Grid
-    exposes [
-        Grid,
-        Cell,
-        init,
-        fromList,
-        fromStr,
-        get,
-        set,
-        map,
-        findFirst,
-        findFirstCoord,
-        getRow,
-        getCol,
-        getBox,
-        toRows,
-        toCols,
-        toBoxes,
-        sufficientHints,
-        isLegal,
-        numberIsLegal,
-        prune,
-        prettyPrint,
-        possibilities,
-    ]
+module [
+    Grid,
+    Cell,
+    init,
+    fromStr,
+    get,
+    set,
+    findFirstCoord,
+    sufficientHints,
+    isLegal,
+    numberIsLegal,
+    prune,
+    prettyPrint,
+    solve,
+]
 
-    imports [
-        Number.{ Number },
-        Coord.{ Coord },
-    ]
+import Number exposing [Number]
+import Coord exposing [Coord]
 
 Grid := List Cell implements [Eq]
 
@@ -35,6 +23,76 @@ Cell : [
     Empty (List Number),
     Fixed Number,
 ]
+
+solve : Grid -> Result Grid [NoSolutionFound, NotLegal, TooFewHints]
+solve = \puzzle ->
+    puzzleLegal = isLegal puzzle
+
+    if sufficientHints puzzle then
+        if puzzleLegal then
+            start =
+                findFirstCoord
+                    puzzle
+                    (\cell ->
+                        when cell is
+                            Fixed _ -> Bool.false
+                            Empty _ -> Bool.true
+                    )
+                |> Result.withDefault Coord.first
+
+            backtrackAdvancedHelp puzzle start
+        else
+            Err NotLegal
+    else
+        Err TooFewHints
+
+backtrackAdvancedHelp : Grid, Coord -> Result Grid [NoSolutionFound]
+backtrackAdvancedHelp = \puzzle, currentCoord ->
+
+    currentCell = get puzzle currentCoord
+
+    when currentCell is
+        Fixed _ ->
+            when Coord.increment currentCoord is
+                Ok newCoord -> backtrackAdvancedHelp puzzle newCoord
+                Err _ -> Ok puzzle
+
+        Empty possibleNums ->
+            testNumsResult = List.walkUntil
+                possibleNums
+                (NoSolution puzzle currentCoord)
+                (\state, num ->
+                    when state is
+                        NoSolution grid coord ->
+                            if numberIsLegal grid coord num then
+                                newGrid = set grid coord (Fixed num)
+                                when Coord.increment coord is
+                                    Ok newCoord ->
+                                        when
+                                            backtrackAdvancedHelp
+                                                (prune newGrid)
+                                                newCoord
+                                        is
+                                            Ok solution ->
+                                                Solution solution |> Break
+
+                                            Err _ ->
+                                                NoSolution grid currentCoord
+                                                |> Continue
+
+                                    Err _ -> Solution newGrid |> Break
+                            else
+                                NoSolution grid currentCoord |> Continue
+
+                        Solution grid ->
+                            Solution grid |> Break)
+
+            when testNumsResult is
+                NoSolution _ _ ->
+                    Err NoSolutionFound
+
+                Solution grid ->
+                    Ok grid
 
 defaultCell : Cell
 defaultCell = Empty Number.all
@@ -87,21 +145,6 @@ set = \@Grid cells, coord, value ->
     |> List.set (Coord.toU64 coord) value
     |> @Grid
 
-map : Grid, (Cell -> Cell) -> Grid
-map = \@Grid cells, fn ->
-    cells
-    |> List.map fn
-    |> @Grid
-
-possibilities : Grid -> List (List Number)
-possibilities = \@Grid cells ->
-    List.keepOks
-        cells
-        (\cell ->
-            when cell is
-                Fixed _ -> Err NotEmpty
-                Empty nums -> Ok nums)
-
 mapRows : Grid, (List Cell -> List Cell) -> Grid
 mapRows = \grid, fn ->
     grid
@@ -138,10 +181,6 @@ mapBoxes = \inputGrid, fn ->
                 )
 
         )
-
-findFirst : Grid, (Cell -> Bool) -> Result Cell [NotFound]
-findFirst = \@Grid cells, fn ->
-    List.findFirst cells fn
 
 findFirstCoord : Grid, (Cell -> Bool) -> Result Coord [NotFound]
 findFirstCoord = \@Grid cells, fn ->
@@ -292,7 +331,7 @@ pruneHouse = \house ->
                     Fixed
                         (
                             List.get numbers 0
-                            |> Result.withDefault Number.one
+                            |> Result.withDefault One
                         )
                 else
                     Empty
@@ -311,18 +350,18 @@ pruneHouse = \house ->
 expect
     pruneHouse [
         Empty [
-            Number.one,
-            Number.two,
-            Number.three,
-            Number.four,
+            One,
+            Two,
+            Three,
+            Four,
         ],
-        Fixed Number.three,
-        Empty [Number.four],
+        Fixed Three,
+        Empty [Four],
     ]
     == [
-        Empty [Number.one, Number.two],
-        Fixed Number.three,
-        Fixed Number.four,
+        Empty [One, Two],
+        Fixed Three,
+        Fixed Four,
     ]
 
 # Display
@@ -470,11 +509,11 @@ expect
     ==
     [
         Empty Number.all,
-        Fixed Number.two,
-        Fixed Number.three,
-        Fixed Number.five,
+        Fixed Two,
+        Fixed Three,
+        Fixed Five,
         Empty Number.all,
-        Fixed Number.four,
+        Fixed Four,
         Empty Number.all,
         Empty Number.all,
         Empty Number.all,
@@ -486,14 +525,14 @@ expect
     |> List.get 0
     == Ok [
         Empty Number.all,
-        Fixed Number.nine,
+        Fixed Nine,
         Empty Number.all,
-        Fixed Number.two,
+        Fixed Two,
         Empty Number.all,
-        Fixed Number.one,
-        Fixed Number.three,
+        Fixed One,
+        Fixed Three,
         Empty Number.all,
-        Fixed Number.five,
+        Fixed Five,
     ]
 
 testPuzzle2 : Grid

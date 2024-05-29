@@ -1,21 +1,19 @@
-interface Coord
-    exposes [
-        Coord,
-        getRow,
-        getCol,
-        getBox,
-        fromRowCol,
-        toRowCol,
-        fromXY,
-        toXY,
-        toU8,
-        toU64,
-        fromInt,
-        increment,
-        first,
-        last,
-    ]
-    imports []
+module [
+    Coord,
+    getRow,
+    getCol,
+    getBox,
+    fromRowCol,
+    toRowCol,
+    fromXY,
+    toXY,
+    toU8,
+    toU64,
+    fromInt,
+    increment,
+    first,
+    last,
+]
 
 ## The coordinate of a cell in a Sudoku grid
 Coord := U8 implements [Eq]
