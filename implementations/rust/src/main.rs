@@ -1,10 +1,55 @@
-mod backtrack_advanced;
 mod number;
+mod possible_nums;
 mod puzzles;
+mod smart_backtrack;
+mod solve;
 
-use crate::backtrack_advanced as bt_adv;
-use std::env;
+use crate::smart_backtrack::Grid as Puzzle;
+use clap::{Parser, Subcommand};
+
+#[derive(Parser)]
+#[command(version, about, long_about = None)]
+#[command(propagate_version = true)]
+struct Cli {
+    #[command(subcommand)]
+    command: Commands,
+}
+
+#[derive(Subcommand)]
+enum Commands {
+    Demo,
+    Benchmark,
+}
 
 fn main() {
-    println!("{}", puzzles::PUZZLE1);
+    let cli = Cli::parse();
+
+    match &cli.command {
+        Commands::Demo => demo(),
+        Commands::Benchmark => benchmark(),
+    }
+}
+
+fn benchmark() {
+    let puzzle_strs = [puzzles::OK; 1000];
+
+    let puzzles = puzzle_strs.iter().filter_map(|input| {
+        if let Ok(puzzle) = Puzzle::from_csv_str(input) {
+            Some(puzzle)
+        } else {
+            None
+        }
+    });
+
+    for mut puzzle in puzzles {
+        puzzle.solve().unwrap();
+    }
+}
+fn demo() {
+    let mut puzzle = Puzzle::from_csv_str(puzzles::OK).unwrap();
+    println!("Puzzle:\n{}", puzzle.pretty_print());
+
+    if let Ok(()) = puzzle.solve() {
+        println!("Solved puzzle:\n{}", puzzle.pretty_print());
+    };
 }
