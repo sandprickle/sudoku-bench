@@ -8,6 +8,15 @@ module [
     toStr,
     increment,
     all,
+    one,
+    two,
+    three,
+    four,
+    five,
+    six,
+    seven,
+    eight,
+    nine,
 ]
 
 ## A number in the range 1-9, inclusive.
@@ -97,3 +106,13 @@ increment = \num ->
         Nine -> Err MaxValue
 
 all = [One, Two, Three, Four, Five, Six, Seven, Eight, Nine]
+
+one = One
+two = Two
+three = Three
+four = Four
+five = Five
+six = Six
+seven = Seven
+eight = Eight
+nine = Nine

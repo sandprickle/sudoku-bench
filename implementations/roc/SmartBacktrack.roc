@@ -1,5 +1,6 @@
 module [
     Grid,
+    Cell,
     init,
     fromStr,
     get,
@@ -15,13 +16,14 @@ module [
 
 import Number exposing [Number]
 import Coord exposing [Coord]
-import StackCell exposing [StackCell]
 
 Grid := List Cell implements [Eq]
+
 Cell : [
+    Empty (List Number),
     Fixed Number,
-    Empty (Number, Number, Number, Number, Number, Number, Number, Number, Number),
 ]
+
 solve : Grid -> Result Grid [NoSolutionFound, NotLegal, TooFewHints]
 solve = \puzzle ->
     puzzleLegal = isLegal puzzle
@@ -38,21 +40,21 @@ solve = \puzzle ->
                     )
                 |> Result.withDefault Coord.first
 
-            backtrackAdvancedHelp puzzle start
+            solveHelper puzzle start
         else
             Err NotLegal
     else
         Err TooFewHints
 
-backtrackAdvancedHelp : Grid, Coord -> Result Grid [NoSolutionFound]
-backtrackAdvancedHelp = \puzzle, currentCoord ->
+solveHelper : Grid, Coord -> Result Grid [NoSolutionFound]
+solveHelper = \puzzle, currentCoord ->
 
     currentCell = get puzzle currentCoord
 
     when currentCell is
         Fixed _ ->
             when Coord.increment currentCoord is
-                Ok newCoord -> backtrackAdvancedHelp puzzle newCoord
+                Ok newCoord -> solveHelper puzzle newCoord
                 Err _ -> Ok puzzle
 
         Empty possibleNums ->
@@ -67,7 +69,7 @@ backtrackAdvancedHelp = \puzzle, currentCoord ->
                                 when Coord.increment coord is
                                     Ok newCoord ->
                                         when
-                                            backtrackAdvancedHelp
+                                            solveHelper
                                                 (prune newGrid)
                                                 newCoord
                                         is
@@ -93,7 +95,7 @@ backtrackAdvancedHelp = \puzzle, currentCoord ->
                     Ok grid
 
 defaultCell : Cell
-defaultCell = StackCell.emptyInit
+defaultCell = Empty Number.all
 
 init : Grid
 init = List.repeat defaultCell 81 |> @Grid
@@ -329,7 +331,7 @@ pruneHouse = \house ->
                     Fixed
                         (
                             List.get numbers 0
-                            |> Result.withDefault Number.one
+                            |> Result.withDefault One
                         )
                 else
                     Empty
@@ -348,18 +350,18 @@ pruneHouse = \house ->
 expect
     pruneHouse [
         Empty [
-            Number.one,
-            Number.two,
-            Number.three,
-            Number.four,
+            One,
+            Two,
+            Three,
+            Four,
         ],
-        Fixed Number.three,
-        Empty [Number.four],
+        Fixed Three,
+        Empty [Four],
     ]
     == [
-        Empty [Number.one, Number.two],
-        Fixed Number.three,
-        Fixed Number.four,
+        Empty [One, Two],
+        Fixed Three,
+        Fixed Four,
     ]
 
 # Display
@@ -480,3 +482,73 @@ expect allUnique ["hi", "hi"] == Bool.false
 
 identity : a -> a
 identity = \a -> a
+
+# Tests
+
+testPuzzle1 : Grid
+testPuzzle1 =
+    """
+    0,9,0,4,0,0,0,0,0
+    2,0,1,3,0,0,0,0,0
+    3,0,5,0,9,0,8,0,0
+    5,0,3,0,4,0,0,0,8
+    0,8,0,7,0,6,0,3,0
+    4,0,0,0,3,0,0,0,7
+    0,0,0,0,2,0,4,0,6
+    0,0,0,0,0,9,3,0,0
+    0,0,0,0,0,0,0,5,0
+    """
+    |> fromStr
+
+expect testPuzzle1 |> sufficientHints == Bool.true
+expect testPuzzle1 |> isLegal == Bool.true
+expect testPuzzle1 == testPuzzle1
+expect
+    testPuzzle1
+    |> getCol 0
+    ==
+    [
+        Empty Number.all,
+        Fixed Two,
+        Fixed Three,
+        Fixed Five,
+        Empty Number.all,
+        Fixed Four,
+        Empty Number.all,
+        Empty Number.all,
+        Empty Number.all,
+
+    ]
+expect
+    testPuzzle1
+    |> toBoxes
+    |> List.get 0
+    == Ok [
+        Empty Number.all,
+        Fixed Nine,
+        Empty Number.all,
+        Fixed Two,
+        Empty Number.all,
+        Fixed One,
+        Fixed Three,
+        Empty Number.all,
+        Fixed Five,
+    ]
+
+testPuzzle2 : Grid
+testPuzzle2 =
+    """
+    ,1,1,,,,,,
+    ,,,,,,,,
+    ,,,,,,,,
+    ,,,,,,,,
+    ,,,,,,,,
+    ,,,,,,,,
+    ,,,,,,,,
+    ,,,,,,,,
+    ,,,,,,,,
+    """
+    |> fromStr
+
+expect testPuzzle2 |> sufficientHints == Bool.false
+expect testPuzzle2 |> isLegal == Bool.false
