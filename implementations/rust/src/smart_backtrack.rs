@@ -1,6 +1,6 @@
 use crate::number::Number;
 use crate::possible_nums::PossibleNums;
-use std::{array, collections::HashSet, dbg};
+use std::array;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum Cell {
@@ -34,12 +34,6 @@ pub struct Coord {
 }
 impl Coord {
     pub const FIRST: Self = Self { index: 0 };
-
-    pub fn to_row_col(&self) -> (u8, u8) {
-        let row = self.index / 9;
-        let col = self.index % 9;
-        (row, col)
-    }
 
     pub fn from_row_col(row: u8, col: u8) -> Self {
         Self {
