@@ -1,9 +1,11 @@
 const std = @import("std");
-const grid = @import("grid.zig");
+const smart_backtrack = @import("smart_backtrack.zig");
+const number = @import("number.zig");
+const possible_nums = @import("possible_nums.zig");
 const expectEqual = std.testing.expectEqual;
 
-const Cell = grid.Cell;
-const Grid = grid.Grid;
+const Cell = smart_backtrack.Cell;
+const Grid = smart_backtrack.Grid;
 
 pub fn main() !void {
     // var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
