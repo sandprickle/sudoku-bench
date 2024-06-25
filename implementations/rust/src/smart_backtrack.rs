@@ -223,7 +223,7 @@ impl Grid {
 
     pub fn prune(&mut self) {
         let old_grid = self.clone();
-        let mut coords: [Coord; 9] = array::from_fn(|_| Coord::FIRST);
+        let mut coords: [Coord; 9];
         let mut house: [Cell; 9] = array::from_fn(|_| Cell::init_empty());
 
         for i in 0..9 {
@@ -264,11 +264,10 @@ impl Grid {
     }
 
     fn prune_parents(&mut self, coord: &Coord) {
-        let mut coords: [Coord; 9] = array::from_fn(|_| Coord::FIRST);
         let mut house: [Cell; 9] = array::from_fn(|_| Cell::init_empty());
+        let mut coords = row_coords(coord.parent_row());
 
         // Prune row
-        coords = row_coords(coord.parent_row());
         for (j, coord) in coords.into_iter().enumerate() {
             house[j] = self.get(coord);
         }
@@ -529,7 +528,7 @@ mod tests {
 
     #[test]
     fn test_from_csv_str() {
-        let grid = Grid::from_csv_str(puzzles::OK).unwrap();
+        let grid = Grid::from_csv_str(puzzles::OK);
 
         assert_eq!(
             grid.get(Coord::from_row_col(3, 7)),

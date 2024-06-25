@@ -2,7 +2,6 @@ mod number;
 mod possible_nums;
 mod puzzles;
 mod smart_backtrack;
-mod solve;
 
 use crate::smart_backtrack::Grid as Puzzle;
 use clap::Parser;
@@ -13,12 +12,19 @@ use clap::Parser;
 struct Cli {
     #[arg(short, long, default_value_t = 1000)]
     count: u32,
+
+    #[arg(short, long)]
+    demo: bool,
 }
 
 fn main() {
     let cli = Cli::parse();
 
-    benchmark(cli.count);
+    if cli.demo {
+        demo();
+    } else {
+        benchmark(cli.count);
+    }
 }
 
 fn benchmark(count: u32) {
