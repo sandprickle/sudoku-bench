@@ -1,8 +1,9 @@
 const std = @import("std");
 const PossibleNums = @import("possible_nums.zig").PossibleNums;
 const Number = @import("number.zig").Number;
-const expect = std.testing.expect;
-const expectEqual = std.testing.expectEqual;
+
+/// An index from 0 to 8 referring to one of the nine rows, columns, or boxes.
+pub const HouseIndex = u4;
 
 pub const Grid = struct {
     const Self = @This();
@@ -42,9 +43,10 @@ pub const Grid = struct {
     }
 
     pub fn set(self: *Self, coord: Coord, cell: Cell) void {
-        const row, const col = coord.toRowCol();
+        const row: u7 = coord.parentRow();
+        const col: u7 = coord.parentCol();
 
-        const index: u8 = (row * 9) + col;
+        const index: u7 = (row * 9) + col;
 
         self.cells[index] = cell;
     }
@@ -57,6 +59,13 @@ pub const Grid = struct {
         return output;
     }
 
+    fn setRow(self: *Self, row_num: HouseIndex, row: [9]Cell) void {
+        const coords = rowCoords(row_num);
+        for (row, coords) |cell, coord| {
+            self.set(coord, cell);
+        }
+    }
+
     pub fn getCol(self: *const Self, col_num: HouseIndex) [9]Cell {
         var output: [9]Cell = undefined;
         for (colCoords(col_num), 0..9) |coord, i| {
@@ -65,12 +74,26 @@ pub const Grid = struct {
         return output;
     }
 
+    fn setCol(self: *Self, col_num: HouseIndex, col: [9]Cell) void {
+        const coords = colCoords(col_num);
+        for (col, coords) |cell, coord| {
+            self.set(coord, cell);
+        }
+    }
+
     pub fn getBox(self: *const Self, box_num: u4) [9]Cell {
         var output: [9]Cell = undefined;
         for (boxCoords(box_num), 0..9) |coord, i| {
             output[i] = self.get(coord);
         }
         return output;
+    }
+
+    fn setBox(self: *Self, box_num: HouseIndex, box: [9]Cell) void {
+        const coords = colCoords(box_num);
+        for (box, coords) |cell, coord| {
+            self.set(coord, cell);
+        }
     }
 
     pub fn rows(self: *const Self) RowIterator {
@@ -134,20 +157,22 @@ pub const Grid = struct {
     };
 
     fn isLegal(self: *const Self) bool {
-        for (self.rows()) |row| {
-            if (!houseIsOk(row)) {
+        var row_iter = self.rows();
+        var col_iter = self.cols();
+        var box_iter = self.boxes();
+
+        while (row_iter.next()) |row| {
+            if (!houseIsOk(&row)) {
                 return false;
             }
         }
-
-        for (self.cols()) |col| {
-            if (!houseIsOk(col)) {
+        while (col_iter.next()) |col| {
+            if (!houseIsOk(&col)) {
                 return false;
             }
         }
-
-        for (self.boxes()) |box| {
-            if (!houseIsOk(box)) {
+        while (box_iter.next()) |box| {
+            if (!houseIsOk(&box)) {
                 return false;
             }
         }
@@ -184,41 +209,106 @@ pub const Grid = struct {
     fn hasSufficientHints(self: *const Self) bool {
         var count: u8 = 0;
         for (self.cells) |cell| {
-            if (cell.fixed) {
+            if (std.mem.eql(u8, @tagName(cell), "fixed")) {
                 count += 1;
             }
         }
         return count >= 17;
     }
 
-    // fn prune(self: *Self) void {}
+    fn prune(self: *Self) void {
+        var old_grid = self;
+        var house: [9]Cell = undefined;
 
-    // fn pruneParents(self: *Self, coord: Coord) void {}
-};
+        while (!std.meta.eql(old_grid, self)) {
+            for (0..9) |i_usize| {
+                const i: u4 = @intCast(i_usize);
 
-fn pruneHouse(house: *9[Cell]) void {
-    var fixed_nums = std.BoundedArray(Number, 9).init(0) catch unreachable;
-    for (house) |cell| {
-        if (cell.fixed) fixed_nums.append(cell.fixed) catch unreachable;
+                house = self.getRow(i);
+                pruneHouse(&house);
+                self.setRow(i, house);
+
+                house = self.getCol(i);
+                pruneHouse(&house);
+                self.setCol(i, house);
+
+                house = self.getBox(i);
+                pruneHouse(&house);
+                self.setBox(i, house);
+            }
+            old_grid = self;
+        }
     }
 
+    fn pruneParents(self: *Self, coord: Coord) void {
+        var house_index = coord.parentRow();
+        var house = self.getRow(house_index);
+        pruneHouse(&house);
+        self.setRow(house_index, house);
+
+        house_index = coord.parentCol();
+        house = self.getCol(house_index);
+        pruneHouse(&house);
+        self.setCol(house_index, house);
+
+        house_index = coord.parentBox();
+        house = self.getBox(house_index);
+        pruneHouse(&house);
+        self.setBox(house_index, house);
+    }
+
+    pub fn solve(self: *Self) SolveError!void {
+        if (!self.isLegal()) {
+            return error.IllegalPuzzle;
+        } else if (!self.hasSufficientHints()) {
+            return error.TooFewHints;
+        }
+
+        self.prune();
+
+        const solved = try solveHelper(self, Coord.FIRST);
+
+        self.* = solved;
+    }
+};
+
+fn pruneHouse(house: *[9]Cell) void {
+    var fixed_nums = std.BoundedArray(Number, 9).init(0) catch unreachable;
     for (house) |cell| {
-        if (cell.empty) {
-            for (fixed_nums) |num| {
-                cell.empty.remove(num);
-            }
+        switch (cell) {
+            .fixed => |num| fixed_nums.append(num) catch unreachable,
+            .empty => {},
+        }
+    }
+
+    for (house, 0..) |cell, i| {
+        switch (cell) {
+            .empty => {
+                for (fixed_nums.constSlice()) |num| {
+                    house[i].empty.remove(num);
+                }
+                if (house[i].empty.single()) |num| {
+                    house[i] = Cell{ .fixed = num };
+                }
+            },
+            .fixed => {},
         }
     }
 }
 
-fn houseIsOk(house: *const 9[Cell]) bool {
+fn houseIsOk(house: *const [9]Cell) bool {
     for (0..8) |i| {
         const current = house[i];
-        if (current.fixed) {
+        if (std.mem.eql(u8, @tagName(current), "fixed")) {
             const rest = house[(i + 1)..9];
             for (rest) |cell| {
-                if (cell.fixed and cell.fixed == current.fixed) {
-                    return false;
+                switch (cell) {
+                    .fixed => {
+                        if (cell.fixed == current.fixed) {
+                            return false;
+                        }
+                    },
+                    .empty => {},
                 }
             }
         }
@@ -226,13 +316,45 @@ fn houseIsOk(house: *const 9[Cell]) bool {
     return true;
 }
 
-const CellTag = enum { fixed, empty };
+pub const SolveError = error{ TooFewHints, IllegalPuzzle, NoSolutionFound };
+
+fn solveHelper(grid: *const Grid, c: Coord) SolveError!Grid {
+    switch (grid.get(c)) {
+        .fixed => {
+            if (c.next()) |next| {
+                return solveHelper(grid, next);
+            } else {
+                return grid.*;
+            }
+        },
+        .empty => |possible| {
+            var iter = possible.iterator();
+            while (iter.next()) |num| {
+                if (grid.numberIsLegal(c, num)) {
+                    var new_grid = grid.*;
+                    new_grid.set(c, Cell{ .fixed = num });
+                    if (c.next()) |next| {
+                        new_grid.pruneParents(c);
+                        const solved = try solveHelper(&new_grid, next);
+                        return solved;
+                    } else {
+                        return new_grid;
+                    }
+                }
+            }
+            return SolveError.NoSolutionFound;
+        },
+    }
+}
+
+// const CellTag = enum { fixed, empty };
 
 /// A Cell in a Sudoku grid
 /// Can be a fixed value, or empty
 /// Empty cells contain a set of possible numbers
-pub const Cell = union(CellTag) {
+pub const Cell = union(enum) {
     const Self = @This();
+
     fixed: Number,
     empty: PossibleNums,
 
@@ -244,13 +366,15 @@ pub const Cell = union(CellTag) {
         }
     }
 
-    pub const INIT: Self = Self{ .empty = PossibleNums.ALL };
+    pub const INIT: Self = Self{ .empty = PossibleNums.INIT_ALL };
 };
 
 pub const Coord = struct {
     const Self = @This();
 
     index: u7,
+
+    pub const FIRST = Self{ .index = 0 };
 
     pub fn index(self: Self) u7 {
         return self.index;
@@ -262,25 +386,18 @@ pub const Coord = struct {
         return Self{ .index = r * 9 + c };
     }
 
-    fn toRowCol(self: Self) .{ .row = u4, .col = u4 } {
-        return .{
-            .row = self.index / 9,
-            .col = self.index % 9,
-        };
-    }
-
     pub fn parentRow(self: Self) HouseIndex {
-        return self.index / 9;
+        return @intCast(self.index / 9);
     }
 
     pub fn parentCol(self: Self) HouseIndex {
-        return self.index % 9;
+        return @intCast(self.index % 9);
     }
 
     pub fn parentBox(self: Self) HouseIndex {
         const row = self.parentRow();
         const col = self.parentCol();
-        return (row / 3) * 3 + (col / 3);
+        return @intCast((row / 3) * 3 + (col / 3));
     }
 
     pub fn next(self: Self) ?Self {
@@ -291,9 +408,6 @@ pub const Coord = struct {
     }
 };
 
-/// An index from 0 to 8 referring to one of the nine rows, columns, or boxes.
-pub const HouseIndex = u4;
-
 fn clampIndex(i: HouseIndex) HouseIndex {
     return if (i > 8) 8 else i;
 }
@@ -301,7 +415,7 @@ fn clampIndex(i: HouseIndex) HouseIndex {
 fn rowCoords(row: HouseIndex) [9]Coord {
     var output: [9]Coord = undefined;
     for (0..9) |i| {
-        output[i] = Coord.fromRowCol(clampIndex(row), @truncate(i));
+        output[i] = Coord.fromRowCol(clampIndex(row), @intCast(i));
     }
     return output;
 }
@@ -309,7 +423,7 @@ fn rowCoords(row: HouseIndex) [9]Coord {
 fn colCoords(col: HouseIndex) [9]Coord {
     var output: [9]Coord = undefined;
     for (0..9) |i| {
-        output[i] = Coord.fromRowCol(@truncate(i), clampIndex(col));
+        output[i] = Coord.fromRowCol(@intCast(i), clampIndex(col));
     }
     return output;
 }
@@ -323,10 +437,15 @@ fn boxCoords(box: HouseIndex) [9]Coord {
     for (0..9) |i| {
         const row = row_start + i / 3;
         const col = col_start + i % 3;
-        output[i] = Coord.fromRowCol(row, col);
+        output[i] = Coord.fromRowCol(@intCast(row), @intCast(col));
     }
     return output;
 }
+
+// TESTS
+//
+const expect = std.testing.expect;
+const expectEqual = std.testing.expectEqual;
 
 test Grid {
     const test_input =
@@ -375,23 +494,68 @@ test "Grid.fromCsv" {
     const fixed_cell = test_grid.get(Coord.fromRowCol(0, 8));
     const empty_cell = test_grid.get(Coord.fromRowCol(0, 0));
 
-    try expect(@as(CellTag, fixed_cell) == CellTag.fixed);
+    try expect(std.mem.eql(u8, @tagName(fixed_cell), "fixed"));
     try expect(fixed_cell.fixed == Number.four);
-    try expect(@as(CellTag, empty_cell) == CellTag.empty);
+    try expect(std.mem.eql(u8, @tagName(empty_cell), "empty"));
 }
 
 test Cell {
     const cell_1 = Cell.fromChar('1');
-    try expect(@as(CellTag, cell_1) == CellTag.fixed);
+    try expect(std.mem.eql(u8, @tagName(cell_1), "fixed"));
     try expect(cell_1.fixed == Number.one);
 
     const cell_2 = Cell.fromChar('0');
-    try expect(@as(CellTag, cell_2) == CellTag.empty);
-    try expectEqual(PossibleNums.ALL, cell_2.empty);
+    try expect(std.mem.eql(u8, @tagName(cell_2), "empty"));
+    try expectEqual(PossibleNums.INIT_ALL, cell_2.empty);
 
     const cell_3 = Cell.fromChar('-');
-    try expect(@as(CellTag, cell_3) == CellTag.empty);
+    try expect(std.mem.eql(u8, @tagName(cell_3), "empty"));
 
     const cell_4 = Cell.INIT;
-    try expect(@as(CellTag, cell_4) == CellTag.empty);
+    try expect(std.mem.eql(u8, @tagName(cell_4), "empty"));
+}
+
+test "pruneHouse" {
+    var house = [9]Cell{
+        Cell{ .fixed = Number.one },
+        Cell{ .fixed = Number.five },
+        Cell.INIT,
+        Cell.INIT,
+        Cell.INIT,
+        Cell.INIT,
+        Cell.INIT,
+        Cell{ .fixed = Number.three },
+        Cell.INIT,
+    };
+    pruneHouse(&house);
+
+    try expect(house[0].fixed == Number.one);
+    try expect(house[1].fixed == Number.five);
+    try expect(house[7].fixed == Number.three);
+
+    var expected_possible = PossibleNums.INIT_ALL;
+    expected_possible.remove(Number.one);
+    expected_possible.remove(Number.five);
+    expected_possible.remove(Number.three);
+
+    const expected_cell = Cell{ .empty = expected_possible };
+
+    try expectEqual(expected_cell, house[2]);
+    try expectEqual(expected_cell, house[8]);
+
+    var house_2 = [9]Cell{
+        Cell{ .fixed = Number.one },
+        Cell{ .fixed = Number.two },
+        Cell{ .fixed = Number.three },
+        Cell{ .fixed = Number.four },
+        Cell{ .fixed = Number.five },
+        Cell{ .fixed = Number.six },
+        Cell{ .fixed = Number.seven },
+        Cell{ .fixed = Number.eight },
+        Cell.INIT,
+    };
+
+    pruneHouse(&house_2);
+
+    try expectEqual(Cell{ .fixed = Number.nine }, house_2[8]);
 }
