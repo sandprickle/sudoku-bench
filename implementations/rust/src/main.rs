@@ -5,48 +5,35 @@ mod smart_backtrack;
 mod solve;
 
 use crate::smart_backtrack::Grid as Puzzle;
-use clap::{Parser, Subcommand};
+use clap::Parser;
 
 #[derive(Parser)]
 #[command(version, about, long_about = None)]
 #[command(propagate_version = true)]
 struct Cli {
-    #[command(subcommand)]
-    command: Commands,
-}
-
-#[derive(Subcommand)]
-enum Commands {
-    Demo,
-    Benchmark,
+    #[arg(short, long, default_value_t = 1000)]
+    count: u32,
 }
 
 fn main() {
     let cli = Cli::parse();
 
-    match &cli.command {
-        Commands::Demo => demo(),
-        Commands::Benchmark => benchmark(),
-    }
+    benchmark(cli.count);
 }
 
-fn benchmark() {
-    let puzzle_strs = [puzzles::OK; 1000];
+fn benchmark(count: u32) {
+    // let puzzle_strs = [puzzles::OK; 1000];
+    let puzzle_strs = vec![puzzles::OK; count as usize];
 
-    let puzzles = puzzle_strs.iter().filter_map(|input| {
-        if let Ok(puzzle) = Puzzle::from_csv_str(input) {
-            Some(puzzle)
-        } else {
-            None
-        }
-    });
+    let puzzles = puzzle_strs.iter().map(|input| Puzzle::from_csv_str(input));
 
     for mut puzzle in puzzles {
         puzzle.solve().unwrap();
     }
 }
+
 fn demo() {
-    let mut puzzle = Puzzle::from_csv_str(puzzles::OK).unwrap();
+    let mut puzzle = Puzzle::from_csv_str(puzzles::OK);
     println!("Puzzle:\n{}", puzzle.pretty_print());
 
     if let Ok(()) = puzzle.solve() {

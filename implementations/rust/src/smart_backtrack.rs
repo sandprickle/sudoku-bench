@@ -75,7 +75,7 @@ pub struct Grid {
     cells: [Cell; 81],
 }
 impl Grid {
-    pub fn from_csv_str(input: &str) -> Result<Self, GridParseError> {
+    pub fn from_csv_str(input: &str) -> Self {
         let cells = input
             .split(|c| c == ',' || c == '\n')
             .map(|str| match str.chars().next() {
@@ -95,14 +95,7 @@ impl Grid {
             }
         }
 
-        if !Self::is_legal(&output) {
-            Err(GridParseError::IllegalPuzzle)
-        } else if !Self::has_sufficient_hints(&output) {
-            Err(GridParseError::TooFewHints)
-        } else {
-            output.prune();
-            Ok(output)
-        }
+        return output;
     }
 
     pub fn pretty_print(&self) -> String {
@@ -212,7 +205,20 @@ impl Grid {
     }
 
     pub fn solve(&mut self) -> Result<(), SolveError> {
-        solve_helper(self, Coord::FIRST)
+        if !self.is_legal() {
+            return Err(SolveError::IllegalPuzzle);
+        } else if !self.has_sufficient_hints() {
+            return Err(SolveError::TooFewHints);
+        } else {
+            self.prune();
+            match solve_helper(self, Coord::FIRST) {
+                Ok(solved) => {
+                    *self = solved;
+                    Ok(())
+                }
+                Err(err) => Err(err),
+            }
+        }
     }
 
     pub fn prune(&mut self) {
@@ -376,26 +382,26 @@ fn normalize_index(index: u8) -> u8 {
     }
 }
 
-fn solve_helper(grid: &Grid, c: Coord) -> Result<(), SolveError> {
+fn solve_helper(grid: &Grid, c: Coord) -> Result<Grid, SolveError> {
     match grid.get(c) {
         Cell::Fixed(_) => match c.next() {
             Some(next_c) => solve_helper(grid, next_c),
-            None => Ok(()),
+            None => Ok(*grid),
         },
         Cell::Empty(possible_nums) => {
             for num in possible_nums.iter() {
                 if grid.number_is_legal(c, num) {
+                    let mut new_grid = *grid;
+                    new_grid.set(c, Cell::Fixed(num));
                     match c.next() {
                         Some(next_coord) => {
-                            let mut new_grid = *grid;
-                            new_grid.set(c, Cell::Fixed(num));
                             new_grid.prune_parents(&c);
                             if let Ok(solution) = solve_helper(&new_grid, next_coord) {
                                 return Ok(solution);
                             }
                         }
                         None => {
-                            return Ok(());
+                            return Ok(new_grid);
                         }
                     }
                 }
@@ -409,13 +415,9 @@ fn solve_helper(grid: &Grid, c: Coord) -> Result<(), SolveError> {
 
 #[derive(Debug)]
 pub enum SolveError {
-    NoSolutionFound,
-}
-
-#[derive(Debug)]
-pub enum GridParseError {
     TooFewHints,
     IllegalPuzzle,
+    NoSolutionFound,
 }
 
 pub struct RowIterator<'a> {
