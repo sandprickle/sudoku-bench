@@ -38,17 +38,26 @@ pub const Grid = struct {
         return output;
     }
 
+    // pub fn prettyPrint(self: *Grid) [1669]u8 {
+    //     const topBorder =
+    //         "┏━━━┯━━━┯━━━┳━━━┯━━━┯━━━┳━━━┯━━━┯━━━┓\n";
+    //     const midBorderThick =
+    //         "┣━━━┿━━━┿━━━╋━━━┿━━━┿━━━╋━━━┿━━━┿━━━┫\n";
+    //     const midBorderThin =
+    //         "┠───┼───┼───╂───┼───┼───╂───┼───┼───┨\n";
+    //     const bottomBorder =
+    //         "┗━━━┷━━━┷━━━┻━━━┷━━━┷━━━┻━━━┷━━━┷━━━┛\n";
+
+    //     var lines: [19][]const u8 = undefined;
+    //     lines[0] = topBorder;
+    // }
+
     pub fn get(self: *const Self, coord: Coord) Cell {
-        return self.cells[coord.index];
+        return self.cells[coord.ix];
     }
 
     pub fn set(self: *Self, coord: Coord, cell: Cell) void {
-        const row: u7 = coord.parentRow();
-        const col: u7 = coord.parentCol();
-
-        const index: u7 = (row * 9) + col;
-
-        self.cells[index] = cell;
+        self.cells[coord.ix] = cell;
     }
 
     pub fn getRow(self: *const Self, row_num: HouseIndex) [9]Cell {
@@ -181,25 +190,30 @@ pub const Grid = struct {
     }
 
     fn numberIsLegal(self: *const Self, coord: Coord, num: Number) bool {
-        const row = coord.parentRow();
-        const col = coord.parentCol();
-        const box = coord.parentBox();
-
-        for (self.getRow(row)) |cell| {
-            if (cell.fixed == num) {
-                return false;
+        for (self.getRow(coord.parentRow())) |cell| {
+            switch (cell) {
+                .fixed => |fixed_num| {
+                    if (fixed_num == num) return false;
+                },
+                .empty => {},
             }
         }
 
-        for (self.getCol(col)) |cell| {
-            if (cell.fixed == num) {
-                return false;
+        for (self.getCol(coord.parentCol())) |cell| {
+            switch (cell) {
+                .fixed => |fixed_num| {
+                    if (fixed_num == num) return false;
+                },
+                .empty => {},
             }
         }
 
-        for (self.getBox(box)) |cell| {
-            if (cell.fixed == num) {
-                return false;
+        for (self.getBox(coord.parentBox())) |cell| {
+            switch (cell) {
+                .fixed => |fixed_num| {
+                    if (fixed_num == num) return false;
+                },
+                .empty => {},
             }
         }
 
@@ -217,10 +231,12 @@ pub const Grid = struct {
     }
 
     fn prune(self: *Self) void {
-        var old_grid = self;
+        var old_grid: Self = undefined;
         var house: [9]Cell = undefined;
 
-        while (!std.meta.eql(old_grid, self)) {
+        while (!std.meta.eql(old_grid, self.*)) {
+            old_grid = self.*;
+
             for (0..9) |i_usize| {
                 const i: u4 = @intCast(i_usize);
 
@@ -236,7 +252,6 @@ pub const Grid = struct {
                 pruneHouse(&house);
                 self.setBox(i, house);
             }
-            old_grid = self;
         }
     }
 
@@ -257,20 +272,52 @@ pub const Grid = struct {
         self.setBox(house_index, house);
     }
 
-    pub fn solve(self: *Self) SolveError!void {
-        if (!self.isLegal()) {
-            return error.IllegalPuzzle;
-        } else if (!self.hasSufficientHints()) {
+    pub fn solve(self: *Self) !void {
+        // if (!self.isLegal()) {
+        //     return error.IllegalPuzzle;
+        // } else
+
+        if (!self.hasSufficientHints()) {
             return error.TooFewHints;
         }
 
-        self.prune();
+        // self.prune();
 
         const solved = try solveHelper(self, Coord.FIRST);
 
         self.* = solved;
     }
 };
+
+fn solveHelper(grid: *const Grid, c: Coord) !Grid {
+    switch (grid.get(c)) {
+        .fixed => {
+            if (c.next()) |next| {
+                return solveHelper(grid, next);
+            } else {
+                return grid.*;
+            }
+        },
+        .empty => |possible| {
+            var iter = possible.iterator();
+            while (iter.next()) |num| {
+                if (grid.numberIsLegal(c, num)) {
+                    std.debug.print("Legal number: {any}\n", .{num});
+                    var new_grid = grid.*;
+                    new_grid.set(c, Cell{ .fixed = num });
+                    if (c.next()) |next| {
+                        new_grid.pruneParents(c);
+                        const solved = try solveHelper(&new_grid, next);
+                        return solved;
+                    } else {
+                        return new_grid;
+                    }
+                }
+            }
+            return error.NoSolutionFound;
+        },
+    }
+}
 
 fn pruneHouse(house: *[9]Cell) void {
     var fixed_nums = std.BoundedArray(Number, 9).init(0) catch unreachable;
@@ -316,37 +363,6 @@ fn houseIsOk(house: *const [9]Cell) bool {
     return true;
 }
 
-pub const SolveError = error{ TooFewHints, IllegalPuzzle, NoSolutionFound };
-
-fn solveHelper(grid: *const Grid, c: Coord) SolveError!Grid {
-    switch (grid.get(c)) {
-        .fixed => {
-            if (c.next()) |next| {
-                return solveHelper(grid, next);
-            } else {
-                return grid.*;
-            }
-        },
-        .empty => |possible| {
-            var iter = possible.iterator();
-            while (iter.next()) |num| {
-                if (grid.numberIsLegal(c, num)) {
-                    var new_grid = grid.*;
-                    new_grid.set(c, Cell{ .fixed = num });
-                    if (c.next()) |next| {
-                        new_grid.pruneParents(c);
-                        const solved = try solveHelper(&new_grid, next);
-                        return solved;
-                    } else {
-                        return new_grid;
-                    }
-                }
-            }
-            return SolveError.NoSolutionFound;
-        },
-    }
-}
-
 // const CellTag = enum { fixed, empty };
 
 /// A Cell in a Sudoku grid
@@ -372,26 +388,26 @@ pub const Cell = union(enum) {
 pub const Coord = struct {
     const Self = @This();
 
-    index: u7,
+    ix: u7,
 
-    pub const FIRST = Self{ .index = 0 };
+    pub const FIRST = Self{ .ix = 0 };
 
     pub fn index(self: Self) u7 {
-        return self.index;
+        return self.ix;
     }
 
     pub fn fromRowCol(row: u4, col: u4) Self {
         const r = @as(u7, clampIndex(row));
         const c = @as(u7, clampIndex(col));
-        return Self{ .index = r * 9 + c };
+        return Self{ .ix = r * 9 + c };
     }
 
     pub fn parentRow(self: Self) HouseIndex {
-        return @intCast(self.index / 9);
+        return @intCast(self.ix / 9);
     }
 
     pub fn parentCol(self: Self) HouseIndex {
-        return @intCast(self.index % 9);
+        return @intCast(self.ix % 9);
     }
 
     pub fn parentBox(self: Self) HouseIndex {
@@ -401,8 +417,8 @@ pub const Coord = struct {
     }
 
     pub fn next(self: Self) ?Self {
-        return if (self.index < 80)
-            Self{ .index = self.index + 1 }
+        return if (self.ix < 80)
+            Self{ .ix = self.ix + 1 }
         else
             null;
     }

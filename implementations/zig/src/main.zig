@@ -19,9 +19,12 @@ pub fn main() !void {
 
     var puzzle = Grid.fromCsv(test_puzzle_1);
 
-    try stdout.print("\n{any}\n", .{puzzle});
+    try stdout.print(
+        "Attempting to solve the following puzzle:\n{s}\n",
+        .{test_puzzle_1},
+    );
     try puzzle.solve();
-    try stdout.print("\n{any}\n", .{puzzle});
+    try stdout.print("\nSolve Complete!\n", .{});
 }
 const test_puzzle_1 =
     \\0,0,0,0,0,2,1,0,4

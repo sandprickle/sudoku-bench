@@ -3,10 +3,10 @@ const std = @import("std");
 pub const Coord = struct {
     const Self = @This();
 
-    index: u7,
+    ix: u7,
 
     pub fn index(self: *const Self) u7 {
-        return self.index;
+        return self.ix;
     }
 
     pub fn from_row_col(row: u4, col: u4) Self {
@@ -15,8 +15,8 @@ pub const Coord = struct {
 
     pub fn to_row_col(self: *const Self) .{ .row = u4, .col = u4 } {
         return .{
-            .row = self.index / 9,
-            .col = self.index % 9,
+            .row = self.ix / 9,
+            .col = self.ix % 9,
         };
     }
 };
